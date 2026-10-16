@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C-UAS Lab — Measured Attack Impact</title>
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#121820; --panel2:#0e141b; --line:#1e2730;
+    --ink:#e6edf3; --muted:#8a97a6; --accent:#2dd4bf; --bad:#ff5d6c; --warn:#e8b84b; --good:#4ade80;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1100px;margin:0 auto;padding:26px 22px 60px}
+  h1{font-size:1.5rem;margin:0 0 .15em;letter-spacing:-.01em}
+  h1 b{color:var(--accent)}
+  .sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  select,button{font:inherit;font-size:14px;padding:8px 13px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--ink);border-radius:8px;cursor:pointer}
+  button.primary{background:var(--accent);color:#06281f;border-color:var(--accent);font-weight:600}
+  button:hover{border-color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:18px}
+  h2{font-size:1.05rem;margin:0 0 12px}
+  table{border-collapse:collapse;width:100%;font-size:.86rem;font-family:var(--mono)}
+  th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
+  tr.base td{color:var(--muted)}
+  tr.hot td{background:rgba(255,93,108,.06)}
+  td.worse{color:var(--bad);font-weight:700}
+  .iq{color:var(--accent);font-size:11px;opacity:.65}
+  .scn:hover .iq{opacity:1}
+  td.scn,th.scn{cursor:help}
+  td.scn .iq,th.scn .iq{color:var(--accent);font-size:11px;opacity:.6}
+  td.scn:hover .iq,th.scn:hover .iq{opacity:1}
+  td.scn:hover,th.scn:hover{color:var(--accent)}
+  #tip{position:fixed;z-index:99;max-width:360px;background:#0e141d;color:var(--ink);
+    border:1px solid var(--accent);border-radius:8px;padding:10px 13px;font-size:12.5px;line-height:1.55;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;display:none}
+  td.better{color:var(--good)}
+  .chartgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+  .chart h3{font-size:.8rem;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em}
+  .rowbar{display:flex;align-items:center;gap:8px;margin:3px 0;font-family:var(--mono);font-size:11px}
+  .rowbar .lbl{width:92px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rowbar .track{flex:1;height:12px;background:var(--panel2);border-radius:6px;overflow:hidden}
+  .rowbar .fill{height:100%;background:var(--accent)}
+  .rowbar .fill.bad{background:var(--bad)}
+  .rowbar .fill.good{background:var(--good)}
+  .rowbar .fill.flat{background:#2a333d}
+  .rowbar .val{width:52px;text-align:right}
+  .rowbar .val.vbad{color:var(--bad);font-weight:700}
+  .rowbar .lbl{width:118px}
+  .chart h3 .base{color:#4a5666;font-weight:400;text-transform:none;letter-spacing:0}
+  .note{color:var(--muted);font-size:.82rem;line-height:1.6;border-top:1px solid var(--line);padding-top:14px;margin-top:6px}
+  .spin{color:var(--muted)}
+  .pill{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(45,212,191,.12);color:var(--accent);margin-left:8px}
+  .hint2{color:var(--muted);font-size:.85rem;margin:-4px 0 12px}
+  .dgroup{margin-bottom:14px}
+  .dgroup .gt{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:4px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+  .comp{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);cursor:help}
+  .comp:hover{border-color:var(--accent)}
+  .comp .cn{flex:1;min-width:0}
+  .comp .cn b{font-size:12.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .comp .cn .cs{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .comp .iq{color:var(--accent);font-size:10px;opacity:.5}
+  .comp:hover .iq{opacity:1}
+  .comp input{width:46px;font:inherit;padding:4px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;text-align:center;flex:none}
+  .dhealth{font-size:.9rem;border-radius:8px;padding:10px 13px;margin-bottom:12px;line-height:1.5}
+  .dhealth b{font-weight:700}
+  .dhealth.sound{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.35)}
+  .dhealth.weak{background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.4)}
+  .dhealth.fail{background:rgba(255,93,108,.09);border:1px solid rgba(255,93,108,.45)}
+  .dhealth .dh-title{font-weight:700;margin-bottom:3px}
+  .tag{font-size:9px;padding:1px 5px;border-radius:8px;vertical-align:middle;font-weight:600}
+  .tag.sg{background:rgba(45,212,191,.15);color:var(--accent)}
+  .tag.legacy{background:rgba(232,184,75,.15);color:var(--warn)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .pbtn{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:9px 12px;
+    border:1px solid var(--line);background:var(--panel2);border-radius:9px;cursor:pointer;max-width:260px}
+  .pbtn:hover{border-color:var(--accent)}
+  .pbtn.active{border-color:var(--accent);background:rgba(45,212,191,.08)}
+  .pbtn b{font-size:12.5px}
+  .pbtn .pn{font-size:10.5px;color:var(--muted);line-height:1.4;white-space:normal}
+  .cmpwrap{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cmpcol label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:5px}
+  .cmpcol select{width:100%}
+  .verdict{font-size:.92rem;border-top:1px solid var(--line);padding-top:12px;margin-top:12px;color:var(--ink)}
+  .verdict b{color:var(--accent)}
+  td.wincol{color:var(--good);font-weight:700}
+  th.cmpa,td.cmpa{color:#7fd4ff}
+  th.cmpb,td.cmpb{color:#ffb77f}
+  .scope{display:flex;gap:10px;align-items:flex-start;background:rgba(232,184,75,.07);border:1px solid rgba(232,184,75,.35);
+    border-radius:9px;padding:10px 13px;margin:0 0 18px;font-size:.82rem;line-height:1.5;color:var(--ink)}
+  .scope .si{font-size:16px;line-height:1.2;flex:none}
+  .scope b{color:var(--warn)}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+<div class="wrap">
+  <h1><b>C-UAS Lab</b> — Measured Attack Impact <span id="ver" class="pill" style="vertical-align:middle"></span></h1>
+  <div class="sub">Real Kalman-tracker pipeline. Each attack genuinely corrupts the data; results below are <b>measured, not scripted</b>, and <b>averaged over several random runs</b> so run-to-run noise cancels out. <span id="status" class="spin"></span></div>
+
+  <div class="scope">
+    <span class="si">⚠</span>
+    <div><b>Scope — read before quoting any number.</b> This is a representative lab: component <b>specifications are real</b> (manufacturer-published, sources in each ⓘ) but the <b>behaviour is modelled</b> from those specs — it is <b>not a real fielded C-UAS, not any customer's deployment, and not an exploit of real RF/C2 links</b>. Real ranges are in kilometres; the lab world is scaled down (÷3) for a fast, reproducible run. The effects are faithful <i>in kind</i> to how these attacks degrade a real system; <b>exact magnitudes on any live system come only from an actual assessment.</b></div>
+  </div>
+
+  <div class="card" id="designCard">
+    <h2>1 · Design your C-UAS system <span class="pill">real products, published specs</span></h2>
+    <div class="hint2">Load a preset, or pick the real components and how many of each. Leave all at 0 to use a default layout. Hover any <span style="color:var(--accent)">ⓘ</span> for specs + source. <b style="color:var(--warn)">*</b> next to a range = the vendor does not publicly disclose it (sim assumption). <span class="tag sg">SG</span> = Singapore, <span class="tag legacy">legacy</span> = older generation.</div>
+    <div id="presets" class="presets"></div>
+    <div id="design"></div>
+  </div>
+
+  <div class="bar">
+    <label class="scn" data-tip="Attacking drones homing in on the protected asset. These are the threats the system must stop. 'Leaked' counts how many of these get through." style="color:var(--muted);font-size:13px">Hostile <span class="iq">ⓘ</span>
+      <input id="nh" type="number" min="1" max="40" value="8" style="width:58px;font:inherit;padding:7px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px">
+    </label>
+    <label class="scn" data-tip="Friendly / non-hostile drones (e.g. news, hobbyist, delivery, friendly UAV) that transit the area but are NOT attacking. They test whether the system correctly LEAVES THEM ALONE. Shooting one by mistake = 'Fratricide'. Set this above 0 and run a Classification-spoof / Spoofed-fire-command attack to see fratricide rise." style="color:var(--muted);font-size:13px">Benign <span class="iq">ⓘ</span>
+      <input id="nb" type="number" min="0" max="40" value="4" style="width:58px;font:inherit;padding:7px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px">
+    </label>
+    <button class="primary" id="runAll">▶ 2 · Run full assessment</button>
+    <select id="single"></select>
+    <button id="runOne">Run single attack</button>
+    <button id="runCmp">⚖ Compare two presets</button>
+    <button id="exportCsv" disabled title="Run an assessment first">⭳ Download results (CSV)</button>
+  </div>
+
+  <div class="card" id="cmpCard" style="display:none">
+    <h2>Compare two designs <span class="pill">which one keeps the asset alive under attack?</span></h2>
+    <div class="hint2">Pick two presets. Each is run against the baseline and every attack; the table shows how many hostiles each design lets through (lower is better). The column that leaks fewer, wins each row.</div>
+    <div class="cmpwrap" style="margin-bottom:12px">
+      <div class="cmpcol"><label>Design A</label><select id="cmpA"></select></div>
+      <div class="cmpcol"><label>Design B</label><select id="cmpB"></select></div>
+    </div>
+    <button class="primary" id="runCmpGo">Run comparison</button>
+    <div id="cmpResult" style="margin-top:16px"></div>
+  </div>
+
+  <div class="card" id="tableCard" style="display:none">
+    <h2>Baseline vs. attacks <span class="pill">lower Neutralised / higher Leaked = worse</span></h2>
+    <div id="designHealth"></div>
+    <div style="overflow:auto"><table id="tbl"></table></div>
+  </div>
+
+  <div class="card" id="chartCard" style="display:none">
+    <h2>Impact vs. baseline <span class="pill">longer red bar = more damage the attack caused</span></h2>
+    <div class="hint2">Results are <b>averaged over several random runs</b>, so values can be fractional and a result <b>within run-to-run noise shows as “~”</b> (no real effect) rather than a misleading ±1. An attack can only ever <b>harm</b> the defence, so <b>real kills are capped at the clean baseline</b> for each run — an attack can never read as improving the system. Note: the <b>Neutralised</b> and <b>Leaked</b> charts mirror each other by design — a drone that isn't neutralised leaks, so kills-lost ≈ leaks-gained (the accounting balances: Neutralised + Leaked + In-flight = total hostiles). This is expected, not a duplicate.</div>
+    <div class="chartgrid" id="charts"></div>
+  </div>
+
+  <div class="card">
+    <div class="note" id="legend">Click <b>Run full assessment</b> to execute every attack against the lab pipeline and measure the impact. This runs the real engine — it takes a few seconds.</div>
+  </div>
+</div>
+
+<script>
+const S = document.getElementById('status')
+const LAB_VERSION = 'v0.2.0'
+const METRIC_HINT = { "Neutralised":"down", "Leaked":"up", "False tracks":"up", "Wasted shots":"up", "Track gap %":"up", "RMSE (m)":"up" }
+// "worse" direction: for Neutralised, lower is worse; for the rest, higher is worse.
+
+// Plain-language definitions for every metric (hover tooltips on the column headers & charts).
+const METRIC_TIP = {
+  "Neutralised": "Hostile drones the system successfully stopped (jammed, downed or captured) before they reached the asset. Higher is better. The whole point of the system.",
+  "Leaked": "Hostile drones that got through and reached the protected asset — the failures. Higher is worse. This is the number that actually matters.",
+  "In flight": "Hostiles still airborne and unresolved when the simulation ended (neither stopped nor arrived yet). Accounting only — kept so Neutralised + Leaked + In flight = total hostiles. Not an impact metric.",
+  "Fratricide": "Friendly / benign drones engaged by mistake (the system fired on the wrong thing). Should be 0. Rises when an attack corrupts the hostile/friendly classification — a dangerous, real-world safety failure.",
+  "False tracks": "Phantom targets on the operator's screen that correspond to no real drone. Created by injection/flooding attacks. They waste attention and effectors and can hide real threats.",
+  "Wasted shots": "Effector engagements spent on phantoms or decoys instead of real drones. Each one burns a finite resource (cooldown/ammo) and leaves real targets un-engaged.",
+  "Track gap %": "Share of the time a real hostile was NOT being tracked (lost or never acquired). Higher is worse — a drone you aren't tracking is a drone you can't engage. 100% = the kill chain is blind.",
+  "RMSE (m)": "Tracking position error in metres (root-mean-square) — how far the system's estimate of a drone is from where it really is. Higher is worse; large values mean effectors are aimed at the wrong place.",
+};
+const BASELINE_TIP = "The CONTROL run: your design against the drones with the data pipeline completely untouched — no attacker interfering. It answers 'how well does this design perform when nobody is attacking the software?'. Every attack row below is compared against this baseline; the difference is the measured impact of that attack. Averaged over several random runs.";
+
+async function j(url){ const r = await fetch(url); if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json() }
+
+// POST a run with the current design + counts
+async function runScenario(attackKey){
+  const body = { attack: attackKey,
+                 hostile: +document.getElementById('nh').value||4,
+                 benign: +document.getElementById('nb').value||3,
+                 design: collectDesign() }
+  const r = await fetch('/api/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+  if(!r.ok) throw new Error((await r.json()).error||r.status)
+  return r.json()
+}
+
+const GROUP_LABEL = {radar:'Detection — Radar', rf:'Detection — RF / ESM', eo_acoustic:'Detection — EO/IR & Acoustic', effector:'Effectors', c2:'C2 / Command & Control (the brain)'}
+let COMPONENTS = []
+async function loadComponents(){
+  COMPONENTS = await j('/api/components')
+  const host = document.getElementById('design'); host.innerHTML = ''
+  const groups = {}
+  COMPONENTS.forEach(c=>{ (groups[c.group]=groups[c.group]||[]).push(c) })
+  for(const g of ['radar','rf','eo_acoustic','effector','c2']){
+    if(!groups[g]) continue
+    let html = `<div class="dgroup"><div class="gt">${GROUP_LABEL[g]||g}</div><div class="cgrid">`
+    groups[g].forEach(c=>{
+      const rng = c.range_m ? `${(c.range_m/1000).toFixed(1)} km${c.range_disclosed===false?'*':''}` : ''
+      const res = (c.resilience!=null) ? `resilience ${Math.round(c.resilience*100)}%` : ''
+      const spec = [rng, c.fov_az?`${c.fov_az}°`:'', res].filter(Boolean).join(' · ')
+      // default starter design: a SOUND layered design that actually holds at baseline
+      // (even vs a 20-drone swarm), so a first run shows attacks biting — not a sieve.
+      // 2x 360deg micro-Doppler radar + wideband RF + EO, mixed hard/soft effectors incl.
+      // an HPM for counter-swarm (one laser can't service 20 drones at once), hardened C2.
+      const DEFAULT_ON = {robin_iris:2, droneshield_rfone:1, eoir_generic:1,
+                          lockheed_helios:2, epirus_leonidas:1, droneshield_dronegun:1, c2_hardened:1}
+      const def = DEFAULT_ON[c.id] || 0
+      const flags = [c.origin?`Origin: ${c.origin}`:'',
+                     c.legacy?'LEGACY / older generation':'',
+                     c.range_disclosed===false?'* effective range NOT publicly disclosed — the figure shown is a sim assumption':'',
+                     c.spec_note?('Note: '+c.spec_note):''].filter(Boolean).join('  ·  ')
+      // full info -> hover tooltip (origin, band, range, note, flags, source)
+      const tip = [c.origin?`[${c.origin}]`:'', c.band||'', c.range_m?`Range ${(c.range_m/1000).toFixed(1)} km`:'', c.fov_az?`FoV ${c.fov_az}° az`:'',
+                   res, c.note||'', c.extra||'', flags, c.src?('Source: '+c.src):''].filter(Boolean).join('  ·  ')
+      const badge = c.legacy ? ' <span class="tag legacy">legacy</span>'
+                  : (c.origin==='Singapore' ? ' <span class="tag sg">SG</span>' : '')
+      html += `<div class="comp" data-tip="${tip.replace(/"/g,'&quot;')}">`+
+              `<div class="cn"><b>${c.name} <span class="iq">ⓘ</span>${badge}</b><div class="cs">${spec}</div></div>`+
+              `<input type="number" min="0" max="20" value="${def}" data-id="${c.id}" data-group="${c.group}"></div>`
+    })
+    html += `</div></div>`
+    host.insertAdjacentHTML('beforeend', html)
+  }
+}
+function collectDesign(){
+  const sensors = {}, effectors = {}, c2 = {}
+  document.querySelectorAll('#design input').forEach(inp=>{
+    const n = +inp.value||0; if(n<=0) return
+    const g = inp.dataset.group
+    if(g==='effector') effectors[inp.dataset.id]=n
+    else if(g==='c2') c2[inp.dataset.id]=n
+    else sensors[inp.dataset.id]=n
+  })
+  return {sensors, effectors, c2}
+}
+
+let ATTACK_DESC = {}   // name -> rich tooltip (desc + modelling basis + standard mapping)
+let ATTACK_META = {}   // key -> {desc, basis, ref, name} for the CSV export
+// Build the full hover text for an attack: what it does, the modelling basis, the standard it maps to.
+function attackTip(a){
+  return [a.desc || '',
+          a.basis ? ('Modelling basis: ' + a.basis) : '',
+          a.ref   ? ('Maps to: ' + a.ref) : ''
+         ].filter(Boolean).join('   ·   ')
+}
+async function loadCatalog(){
+  const cat = await j('/api/catalog')
+  const sel = document.getElementById('single')
+  cat.forEach(a=>{ ATTACK_DESC[a.name] = attackTip(a); ATTACK_META[a.key] = a })
+  sel.innerHTML = cat.map(a=>`<option value="${a.key}" title="${attackTip(a).replace(/"/g,'&quot;')}">${a.name} — ${a.maps_to}</option>`).join('')
+}
+
+function cls(metric, val, base){
+  // Only flag genuine DAMAGE (red). An attack scoring "better" than baseline is noise,
+  // not a benefit — don't colour it green (that implies the attack helped). "In flight"
+  // is accounting only and is never coloured. Values are seed-AVERAGED, so apply a small
+  // tolerance: a sub-noise wobble (< ~0.6 of a kill, or < 1 m RMSE) is not flagged as damage.
+  if(metric==="In flight") return ""
+  const tol = (metric==="RMSE (m)") ? 1.0 : (metric==="Track gap %" ? 1.5 : 0.6)
+  if(metric==="Neutralised") return (base - val) > tol ? "worse" : ""
+  return (val - base) > tol ? "worse" : ""
+}
+
+function renderHealth(base){
+  // "design health" = how the design does at BASELINE (no attack). If it already leaks a lot,
+  // attacks can't show much extra impact — the design is failing on its own.
+  const el = document.getElementById('designHealth')
+  if(!el) return
+  const neut = base['Neutralised']||0, leak = base['Leaked']||0, flight = base['In flight']||0
+  const total = neut + leak + flight
+  if(total <= 0){ el.innerHTML = ''; return }
+  const leakPct = leak/total
+  let cls, title, msg
+  const totR = Math.round(total)
+  if(leakPct <= 0.1){
+    cls='sound'; title='Design health: SOUND'
+    msg=`At baseline (no attack) this design neutralises <b>${neut}/${totR}</b> hostiles on average — it holds. The attack rows below show what each attack <b>strips away</b> from a working design (this is where the security impact is visible). Values are averaged over several random runs, so they can be fractional.`
+  } else if(leakPct < 0.5){
+    cls='weak'; title='Design health: MARGINAL'
+    msg=`At baseline this design already lets <b>${leak}/${total}</b> hostiles through before any attack. It's partly failing on its own, so attack impact will be partly masked. Load a stronger preset to see attacks clearly.`
+  } else {
+    cls='fail'; title='Design health: FAILING'
+    msg=`⚠ At baseline — with <b>no attack at all</b> — this design already leaks <b>${leak}/${total}</b> hostiles. A design this weak fails by itself, so the attacks below have little left to break (that's why the rows look flat). This is a real finding: weak hardware/architecture fails without any attacker. To see what attacks <i>add</i>, load the <b>Strong (layered)</b> preset and run again.`
+  }
+  el.className = 'dhealth '+cls
+  el.innerHTML = `<div class="dh-title">${title}</div>${msg}`
+}
+
+let LAST_RESULT = null   // last rendered assessment, for CSV export
+function renderTable(data){
+  const {metric_keys, rows} = data
+  const base = rows[0].metrics
+  LAST_RESULT = data
+  const ex = document.getElementById('exportCsv'); if(ex){ ex.disabled = false; ex.title = 'Download the table above as CSV' }
+  renderHealth(base)
+  // column headers carry a ⓘ with the metric's plain-language definition
+  const headCells = metric_keys.map(k=>{
+    const mt = METRIC_TIP[k]
+    return mt ? `<th class="scn" data-tip="${mt.replace(/"/g,'&quot;')}">${k} <span class="iq">ⓘ</span></th>`
+              : `<th>${k}</th>`
+  }).join("")
+  let h = "<thead><tr><th>Scenario</th>" + headCells + "</tr></thead><tbody>"
+  rows.forEach((r,i)=>{
+    const rowcls = i===0 ? "base" : "hot"
+    // baseline row gets the baseline explanation; attack rows get the attack description
+    const tip = i===0 ? BASELINE_TIP : (ATTACK_DESC[r.scenario]||'')
+    const nameCell = tip
+      ? `<td class="scn" data-tip="${tip.replace(/"/g,'&quot;')}">${r.scenario} <span class="iq">ⓘ</span></td>`
+      : `<td>${r.scenario}</td>`
+    h += `<tr class="${rowcls}">${nameCell}` + metric_keys.map(k=>{
+      const v = r.metrics[k]
+      const c = i===0 ? "" : cls(k, v, base[k])
+      return `<td class="${c}">${v}</td>`
+    }).join("") + "</tr>"
+  })
+  h += "</tbody>"
+  const t = document.getElementById('tbl'); t.innerHTML = h
+  document.getElementById('tableCard').style.display = ""
+  renderCharts(data)
+}
+
+function renderCharts(data){
+  const {metric_keys, rows} = data
+  const host = document.getElementById('charts'); host.innerHTML = ""
+  if (rows.length < 2){ document.getElementById('chartCard').style.display="none"; return }
+  const base = rows[0].metrics
+  const attacks = rows.slice(1)
+  // For each metric, "worse" direction: Neutralised lower=worse; everything else higher=worse.
+  // We chart the DELTA vs baseline, always as "damage" (positive = worse).
+  const WORSE_IF_LOWER = { "Neutralised": true }
+  const SKIP = { "In flight": true }           // accounting only — not an impact metric
+  const short = (name)=> name.replace(/ \(.*\)/,'').replace('Sensor ','').replace('/ ','/')
+
+  metric_keys.filter(k=>!SKIP[k]).forEach(k=>{
+    const lowerWorse = !!WORSE_IF_LOWER[k]
+    // damage = how much WORSE than baseline (always positive = bad). For "lower is worse"
+    // metrics (Neutralised) a drop is damage. The BAR uses this damage value.
+    const dmg = attacks.map(r=> lowerWorse ? (base[k]-r.metrics[k]) : (r.metrics[k]-base[k]))
+    const maxd = Math.max(1, ...dmg.map(Math.abs))
+    // the printed NUMBER shows the real change in the metric, so the sign always reads naturally:
+    //   Neutralised falling 19->12 prints "-7" (red), not "+7". Leaked rising prints "+10" (red).
+    const realDelta = attacks.map(r=> r.metrics[k]-base[k])
+    const title = lowerWorse ? `${k} — kills LOST to the attack` : `${k} — impact vs baseline`
+    // noise tolerance: results are seed-averaged, so treat sub-noise wobble as "no real effect".
+    const tol = (k==="RMSE (m)") ? 1.0 : (k==="Track gap %" ? 1.5 : 0.6)
+    const mt = METRIC_TIP[k] || ''
+    const info = mt ? ` <span class="scn" data-tip="${mt.replace(/"/g,'&quot;')}" style="cursor:help"><span class="iq">ⓘ</span></span>` : ''
+    let inner = `<div class="chart"><h3>${title}${info} <span class="base">(base ${base[k]})</span></h3>`
+    attacks.forEach((r,i)=>{
+      const d = dmg[i]                 // DAMAGE (positive = worse than baseline; negative = "better")
+      const rd = realDelta[i]          // actual metric change (for the printed number when it IS real damage)
+      // An attack can only ever HARM the defence. Anything that isn't real damage above the
+      // noise band — including a result that merely looks "better than baseline" — is noise,
+      // so it shows as "~". This prevents an attack ever appearing to IMPROVE the system.
+      const worse = d > tol
+      const w = Math.round(100*Math.abs(d)/maxd)
+      const sign = rd>0?'+':''
+      const label = worse ? (sign+Math.round(rd*10)/10) : '~'
+      inner += `<div class="rowbar"><span class="lbl" title="${r.scenario}">${short(r.scenario)}</span>`+
+               `<span class="track"><span class="fill ${worse?'bad':'flat'}" style="width:${worse?w:0}%"></span></span>`+
+               `<span class="val ${worse?'vbad':''}">${label}</span></div>`
+    })
+    inner += `</div>`
+    host.insertAdjacentHTML('beforeend', inner)
+  })
+  document.getElementById('chartCard').style.display = ""
+}
+
+// ---- CSV export: a hand-off deliverable with the scope caveat baked in ----
+function describeDesign(){
+  // read the current component inputs into a human string for the report header
+  const parts = []
+  document.querySelectorAll('#design input').forEach(inp=>{
+    const n = +inp.value||0; if(n<=0) return
+    const comp = COMPONENTS.find(c=>c.id===inp.dataset.id)
+    parts.push(`${n}x ${comp?comp.name:inp.dataset.id}`)
+  })
+  return parts.join('; ') || '(default layout)'
+}
+document.getElementById('exportCsv').onclick = ()=>{
+  if(!LAST_RESULT) return
+  const {metric_keys, rows} = LAST_RESULT
+  const esc = s => `"${String(s).replace(/"/g,'""')}"`
+  const L = []
+  // provenance + mandatory scope caveat travel WITH the data
+  L.push(esc('C-UAS Lab — measured attack impact'))
+  L.push(esc('Generated: '+new Date().toISOString()))
+  L.push(esc('Design: '+describeDesign()))
+  L.push(esc('Hostiles: '+(document.getElementById('nh').value)+'  Benign: '+(document.getElementById('nb').value)))
+  L.push(esc('Lab version: '+LAB_VERSION+'   Seeds averaged: '+(LAST_RESULT.rows[0] && LAST_RESULT.rows[0].seeds || '?')))
+  L.push(esc('SCOPE: Representative lab. Component specs are real (manufacturer-published); behaviour is MODELLED from those specs. NOT a live C-UAS, not any customer deployment, not an exploit of real RF/C2. Results are seed-averaged and faithful IN KIND; exact magnitudes on a real system require an actual assessment.'))
+  L.push(esc('NOTE: "Neutralised" and "Leaked" are complementary by design (a hostile not neutralised leaks), so the two columns mirror each other — this is accounting, not a duplicate. "In flight" = unresolved at sim end; Neutralised + Leaked + In flight = total hostiles.'))
+  L.push(esc('NOTE: each attack shows the DIRECTION of impact; magnitudes are modelled, not measured on a real system (see per-attack basis below).'))
+  L.push('')   // blank line
+  // results table
+  L.push(['Scenario', ...metric_keys].map(esc).join(','))
+  rows.forEach(r=>{ L.push([r.scenario, ...metric_keys.map(k=>r.metrics[k])].map(esc).join(',')) })
+  // per-attack provenance: modelling basis + standard it maps to (credibility chain travels with the data)
+  L.push('')
+  L.push(['Attack', 'Maps to (standard / interface)', 'Modelling basis'].map(esc).join(','))
+  rows.forEach(r=>{
+    if(r.key==='baseline') return
+    const a = ATTACK_META[r.key] || {}
+    L.push([r.scenario, a.ref||'', a.basis||''].map(esc).join(','))
+  })
+  const blob = new Blob([L.join('\r\n')], {type:'text/csv;charset=utf-8'})
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'cuas-lab-results-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.csv'
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href)
+}
+
+document.getElementById('runAll').onclick = async ()=>{
+  const btn = document.getElementById('runAll'); btn.disabled = true
+  const rows = []
+  try{
+    // run baseline first, then each attack — updating the table after each (live progress)
+    const cat = await j('/api/catalog')
+    const keys = ['baseline', ...cat.map(a=>a.key)]
+    for(let i=0;i<keys.length;i++){
+      S.textContent = `running real engine… ${i+1}/${keys.length}`
+      const row = await runScenario(keys[i])
+      rows.push(row)
+      renderTable({metric_keys:Object.keys(rows[0].metrics), rows:rows.slice()})
+    }
+    S.textContent = "done — measured results below."
+  }catch(e){ S.textContent = "error: "+e.message }
+  btn.disabled = false
+}
+document.getElementById('runOne').onclick = async ()=>{
+  const key = document.getElementById('single').value
+  S.textContent = "running "+key+"…"
+  try{
+    const base = await runScenario('baseline')
+    const one = await runScenario(key)
+    renderTable({metric_keys:Object.keys(base.metrics), rows:[base, one]})
+    S.textContent = "done."
+  }catch(e){ S.textContent = "error: "+e.message }
+}
+// custom hover tooltip (instant, reliable — native title is too slow/subtle)
+const tipEl = document.getElementById('tip')
+document.addEventListener('mouseover', e=>{
+  const cell = e.target.closest && e.target.closest('[data-tip]')
+  if(cell && cell.dataset.tip){ tipEl.textContent = cell.dataset.tip; tipEl.style.display='block' }
+})
+document.addEventListener('mousemove', e=>{
+  if(tipEl.style.display==='block'){
+    let x = e.clientX + 16, y = e.clientY + 16
+    if(x + 370 > window.innerWidth) x = e.clientX - 376
+    if(y + 120 > window.innerHeight) y = e.clientY - 120
+    tipEl.style.left = x+'px'; tipEl.style.top = y+'px'
+  }
+})
+document.addEventListener('mouseout', e=>{
+  if(e.target.closest && e.target.closest('[data-tip]')) tipEl.style.display='none'
+})
+
+// ---- Presets: one-click load a real design into the component inputs ----
+let PRESETS = []
+function presetCounts(p){
+  // flatten a preset design ({sensors,effectors,c2}) into {componentId: count}
+  const out = {}
+  const d = p.design || {}
+  ;['sensors','effectors','c2'].forEach(k=>{ Object.assign(out, d[k]||{}) })
+  return out
+}
+function applyPreset(p, btn){
+  const counts = presetCounts(p)
+  document.querySelectorAll('#design input').forEach(inp=>{
+    inp.value = counts[inp.dataset.id] || 0
+  })
+  document.querySelectorAll('.presets .pbtn').forEach(b=>b.classList.remove('active'))
+  if(btn) btn.classList.add('active')
+}
+async function loadPresets(){
+  PRESETS = await j('/api/presets')
+  const host = document.getElementById('presets'); host.innerHTML = ''
+  PRESETS.forEach(p=>{
+    const b = document.createElement('button')
+    b.className = 'pbtn'
+    b.innerHTML = `<b>${p.name}</b><span class="pn">${p.note||''}</span>`
+    b.onclick = ()=>applyPreset(p, b)
+    host.appendChild(b)
+  })
+  // also fill the compare selectors
+  const opt = PRESETS.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('')
+  const a = document.getElementById('cmpA'), c = document.getElementById('cmpB')
+  a.innerHTML = opt; c.innerHTML = opt
+  if(PRESETS.length>1) c.value = PRESETS.length-1   // default: strongest vs weakest
+}
+
+// ---- Compare: run two presets across baseline + all attacks, show who protects better ----
+async function runPresetScenario(preset, attackKey){
+  const body = { attack: attackKey,
+                 hostile: +document.getElementById('nh').value||8,
+                 benign: +document.getElementById('nb').value||4,
+                 design: preset.design }
+  const r = await fetch('/api/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+  if(!r.ok) throw new Error((await r.json()).error||r.status)
+  return r.json()
+}
+document.getElementById('runCmp').onclick = ()=>{
+  const card = document.getElementById('cmpCard')
+  card.style.display = card.style.display==='none' ? '' : 'none'
+  if(card.style.display==='') card.scrollIntoView({behavior:'smooth', block:'nearest'})
+}
+document.getElementById('runCmpGo').onclick = async ()=>{
+  const out = document.getElementById('cmpResult')
+  if(!PRESETS.length){
+    out.innerHTML = '<div class="verdict" style="color:var(--bad)">Presets failed to load — reload the page.</div>'
+    return
+  }
+  const A = PRESETS[+document.getElementById('cmpA').value] || PRESETS[0]
+  const B = PRESETS[+document.getElementById('cmpB').value] || PRESETS[PRESETS.length-1]
+  const btn = document.getElementById('runCmpGo'); btn.disabled = true
+  out.innerHTML = ''
+  try{
+    const cat = await j('/api/catalog')
+    const keys = ['baseline', ...cat.map(a=>a.key)]
+    const names = ['No attack (baseline)', ...cat.map(a=>a.name)]
+    const rowsA = [], rowsB = []
+    for(let i=0;i<keys.length;i++){
+      S.textContent = `comparing… ${i+1}/${keys.length}`
+      const [ra, rb] = await Promise.all([runPresetScenario(A, keys[i]), runPresetScenario(B, keys[i])])
+      rowsA.push(ra); rowsB.push(rb)
+      renderCompare(A, B, names, rowsA, rowsB)
+    }
+    S.textContent = 'comparison done.'
+  }catch(e){
+    S.textContent = 'error: '+e.message
+    out.innerHTML = '<div class="verdict" style="color:var(--bad)">Comparison failed: '+e.message+'</div>'
+  }
+  btn.disabled = false
+}
+function renderCompare(A, B, names, rowsA, rowsB){
+  // headline metric = Leaked (hostiles that reached the asset). Lower wins.
+  let winA = 0, winB = 0, leakA = 0, leakB = 0
+  let h = `<div style="overflow:auto"><table><thead><tr>`+
+          `<th>Scenario</th><th class="cmpa">${A.name}<br><span style="font-weight:400;color:var(--muted)">Leaked · Neutralised</span></th>`+
+          `<th class="cmpb">${B.name}<br><span style="font-weight:400;color:var(--muted)">Leaked · Neutralised</span></th>`+
+          `<th>Better here</th></tr></thead><tbody>`
+  // render only the scenarios collected so far (called progressively as runs complete)
+  const done = Math.min(rowsA.length, rowsB.length)
+  for(let i=0;i<done;i++){
+    const nm = names[i]
+    const la = rowsA[i].metrics['Leaked'], lb = rowsB[i].metrics['Leaked']
+    const ka = rowsA[i].metrics['Neutralised'], kb = rowsB[i].metrics['Neutralised']
+    leakA += la; leakB += lb
+    let better = '—', aCls = '', bCls = ''
+    if(la < lb){ better = A.name; winA++; aCls = 'wincol' }
+    else if(lb < la){ better = B.name; winB++; bCls = 'wincol' }
+    h += `<tr class="${i===0?'base':'hot'}"><td>${nm}</td>`+
+         `<td class="cmpa ${aCls}">${la} · ${ka}</td>`+
+         `<td class="cmpb ${bCls}">${lb} · ${kb}</td>`+
+         `<td>${better}</td></tr>`
+  }
+  h += `</tbody></table></div>`
+  // verdict (only final, once all scenarios are in)
+  let verdict
+  if(leakA < leakB) verdict = `<b>${A.name}</b> protected the asset better overall — ${leakA} total hostiles leaked vs ${leakB} for ${B.name}, and it won ${winA} of ${done} scenarios.`
+  else if(leakB < leakA) verdict = `<b>${B.name}</b> protected the asset better overall — ${leakB} total hostiles leaked vs ${leakA} for ${A.name}, and it won ${winB} of ${done} scenarios.`
+  else verdict = `Both designs leaked the same total (${leakA}). They trade scenarios: ${A.name} won ${winA}, ${B.name} won ${winB}.`
+  h += `<div class="verdict">${verdict}</div>`
+  h += `<div class="hint2" style="margin-top:8px">Cells show <b>Leaked · Neutralised</b> (seed-averaged; lower Leaked is better). Same scope as the main run: real specs, modelled behaviour — not a live C-UAS. “Leaked” is the headline because it's the number that decides whether the asset survives.</div>`
+  document.getElementById('cmpResult').innerHTML = h
+}
+
+document.getElementById('ver').textContent = LAB_VERSION
+loadCatalog().catch(e=>S.textContent="error loading: "+e.message)
+// load components first (so applyPreset can fill the inputs), then presets —
+// but run presets even if components failed, so Compare still works.
+loadComponents()
+  .catch(e=>{ S.textContent="error loading components: "+e.message })
+  .finally(()=>{ loadPresets().catch(e=>S.textContent="error loading presets: "+e.message) })
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+[project]
+name = "robo-lab"
+version = "0.2.0"
+description = "Real-algorithm robotics (AMR) perception/safety pipeline with an attack/fault-injection harness and measured, seed-averaged metrics. The general-robotics sibling of the C-UAS lab."
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23", "scipy>=1.9"]
+
+[project.scripts]
+robo-lab = "robo_lab.run:main"
+robo-lab-serve = "robo_lab.serve:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

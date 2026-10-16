@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Robotics Safety Lab — Measured Attack Impact</title>
+<style>
+  :root{
+    --bg:#0b0e13; --panel:#121820; --panel2:#0e141b; --line:#1e2730;
+    --ink:#e6edf3; --muted:#8a97a6; --accent:#2dd4bf; --bad:#ff5d6c; --warn:#e8b84b; --good:#4ade80;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:1100px;margin:0 auto;padding:26px 22px 60px}
+  h1{font-size:1.5rem;margin:0 0 .15em;letter-spacing:-.01em}
+  h1 b{color:var(--accent)}
+  .sub{color:var(--muted);font-size:.92rem;margin-bottom:22px}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+  select,button{font:inherit;font-size:14px;padding:8px 13px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--ink);border-radius:8px;cursor:pointer}
+  button.primary{background:var(--accent);color:#06281f;border-color:var(--accent);font-weight:600}
+  button:hover{border-color:var(--accent)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:18px}
+  h2{font-size:1.05rem;margin:0 0 12px}
+  table{border-collapse:collapse;width:100%;font-size:.86rem;font-family:var(--mono)}
+  th,td{border-bottom:1px solid var(--line);padding:7px 9px;text-align:right}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--muted);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
+  tr.base td{color:var(--muted)}
+  tr.hot td{background:rgba(255,93,108,.06)}
+  td.worse{color:var(--bad);font-weight:700}
+  .iq{color:var(--accent);font-size:11px;opacity:.65}
+  .scn:hover .iq{opacity:1}
+  td.scn,th.scn{cursor:help}
+  td.scn .iq,th.scn .iq{color:var(--accent);font-size:11px;opacity:.6}
+  td.scn:hover .iq,th.scn:hover .iq{opacity:1}
+  td.scn:hover,th.scn:hover{color:var(--accent)}
+  #tip{position:fixed;z-index:99;max-width:360px;background:#0e141d;color:var(--ink);
+    border:1px solid var(--accent);border-radius:8px;padding:10px 13px;font-size:12.5px;line-height:1.55;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);pointer-events:none;display:none}
+  td.better{color:var(--good)}
+  .chartgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+  .chart h3{font-size:.8rem;color:var(--muted);margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em}
+  .rowbar{display:flex;align-items:center;gap:8px;margin:3px 0;font-family:var(--mono);font-size:11px}
+  .rowbar .lbl{width:92px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rowbar .track{flex:1;height:12px;background:var(--panel2);border-radius:6px;overflow:hidden}
+  .rowbar .fill{height:100%;background:var(--accent)}
+  .rowbar .fill.bad{background:var(--bad)}
+  .rowbar .fill.good{background:var(--good)}
+  .rowbar .fill.flat{background:#2a333d}
+  .rowbar .val{width:52px;text-align:right}
+  .rowbar .val.vbad{color:var(--bad);font-weight:700}
+  .rowbar .lbl{width:118px}
+  .chart h3 .base{color:#4a5666;font-weight:400;text-transform:none;letter-spacing:0}
+  .note{color:var(--muted);font-size:.82rem;line-height:1.6;border-top:1px solid var(--line);padding-top:14px;margin-top:6px}
+  .spin{color:var(--muted)}
+  .pill{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(45,212,191,.12);color:var(--accent);margin-left:8px}
+  .hint2{color:var(--muted);font-size:.85rem;margin:-4px 0 12px}
+  .dgroup{margin-bottom:14px}
+  .dgroup .gt{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin:4px 0 8px;border-bottom:1px solid var(--line);padding-bottom:4px}
+  .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+  .comp{display:flex;align-items:center;gap:8px;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);cursor:help}
+  .comp:hover{border-color:var(--accent)}
+  .comp .cn{flex:1;min-width:0}
+  .comp .cn b{font-size:12.5px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .comp .cn .cs{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .comp .iq{color:var(--accent);font-size:10px;opacity:.5}
+  .comp:hover .iq{opacity:1}
+  .comp input{width:46px;font:inherit;padding:4px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;text-align:center;flex:none}
+  .dhealth{font-size:.9rem;border-radius:8px;padding:10px 13px;margin-bottom:12px;line-height:1.5}
+  .dhealth b{font-weight:700}
+  .dhealth.sound{background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.35)}
+  .dhealth.weak{background:rgba(232,184,75,.08);border:1px solid rgba(232,184,75,.4)}
+  .dhealth.fail{background:rgba(255,93,108,.09);border:1px solid rgba(255,93,108,.45)}
+  .dhealth .dh-title{font-weight:700;margin-bottom:3px}
+  .tag{font-size:9px;padding:1px 5px;border-radius:8px;vertical-align:middle;font-weight:600}
+  .tag.sg{background:rgba(45,212,191,.15);color:var(--accent)}
+  .tag.legacy{background:rgba(232,184,75,.15);color:var(--warn)}
+  .presets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .pbtn{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:9px 12px;
+    border:1px solid var(--line);background:var(--panel2);border-radius:9px;cursor:pointer;max-width:260px}
+  .pbtn:hover{border-color:var(--accent)}
+  .pbtn.active{border-color:var(--accent);background:rgba(45,212,191,.08)}
+  .pbtn b{font-size:12.5px}
+  .pbtn .pn{font-size:10.5px;color:var(--muted);line-height:1.4;white-space:normal}
+  .cmpwrap{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cmpcol label{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:5px}
+  .cmpcol select{width:100%}
+  .verdict{font-size:.92rem;border-top:1px solid var(--line);padding-top:12px;margin-top:12px;color:var(--ink)}
+  .verdict b{color:var(--accent)}
+  td.wincol{color:var(--good);font-weight:700}
+  th.cmpa,td.cmpa{color:#7fd4ff}
+  th.cmpb,td.cmpb{color:#ffb77f}
+  .scope{display:flex;gap:10px;align-items:flex-start;background:rgba(232,184,75,.07);border:1px solid rgba(232,184,75,.35);
+    border-radius:9px;padding:10px 13px;margin:0 0 18px;font-size:.82rem;line-height:1.5;color:var(--ink)}
+  .scope .si{font-size:16px;line-height:1.2;flex:none}
+  .scope b{color:var(--warn)}
+  .wiztbl{width:100%;font-size:12px;margin-top:4px}
+  .wiztbl input,.wiztbl select{font:inherit;font-size:12px;padding:5px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;width:100%}
+  .wiztbl td{border:none;padding:3px 4px}
+  .wiztbl th{font-size:.64rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;padding:2px 4px;text-align:left;border:none}
+  button.addrow{font-size:11px;padding:2px 8px;margin-left:8px}
+  button.delrow{font-size:11px;padding:3px 7px;color:var(--bad);border-color:var(--line)}
+  .archgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;margin-top:6px}
+  .archgrid label{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted)}
+  .archgrid select{font:inherit;font-size:12px;padding:5px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;min-width:150px}
+  .pbadge{font-size:9px;padding:1px 5px;border-radius:7px;font-weight:600}
+  .pbadge.sim{background:rgba(45,212,191,.16);color:var(--accent)}
+  .pbadge.scope{background:rgba(147,161,178,.16);color:var(--muted)}
+  #asTable{width:100%;font-size:13px;border-collapse:collapse;margin-top:8px}
+  #asTable td{border-bottom:1px solid var(--line);padding:6px 8px}
+  #asTable .l{color:var(--muted)}
+</style>
+</head>
+<body>
+<div id="tip"></div>
+<div class="wrap">
+  <h1><b>Robotics Safety Lab</b> — Measured Attack Impact <span id="ver" class="pill" style="vertical-align:middle"></span></h1>
+  <div class="sub">An autonomous warehouse robot (AMR). Real Kalman-tracker perception pipeline; each attack genuinely corrupts the sensor data, so the robot makes an <b>unsafe decision from a valid command</b>. Results are <b>measured, not scripted</b>, and <b>averaged over several random runs</b>. <span style="color:var(--accent)">The same method as our C-UAS lab, on a general robot.</span> <span id="status" class="spin"></span></div>
+
+  <div class="scope">
+    <span class="si">⚠</span>
+    <div><b>Scope — read before quoting any number.</b> This is a representative lab: perception-sensor <b>specifications are real</b> (manufacturer-published, sources in each ⓘ) but the <b>behaviour is modelled</b> from those specs — it is <b>not a real fielded robot, not any customer's deployment, and not an exploit of a real robot's buses</b>. Real ranges are scaled down (÷3) for a fast, reproducible run. The effects are faithful <i>in kind</i> to how these attacks degrade a real autonomous system; <b>exact magnitudes on any live robot come only from an actual assessment.</b></div>
+  </div>
+
+  <div class="card" id="profileCard">
+    <h2>0 · Choose the robot <span class="pill">one engine, any autonomous system</span></h2>
+    <div class="hint2">Pick a robot type — it changes the objects, outcomes and available components, but the <b>same engine and the same 17 attacks</b> run underneath. That's how the lab generalises. Don't see your robot? <b>Add it</b> — no code needed.</div>
+    <div class="bar" style="margin-bottom:0">
+      <label style="color:var(--muted);font-size:13px">Robot profile
+        <select id="profile" style="margin-left:6px"></select>
+      </label>
+      <span id="profileMeta" style="color:var(--muted);font-size:12px"></span>
+      <button id="importBtn">＋ Import your system (form)</button>
+      <button id="addRobotBtn">＋ Add your robot (JSON)</button>
+    </div>
+
+    <!-- Form wizard: build a profile WITH the customer's own hardware, no JSON needed -->
+    <div id="importWiz" style="display:none;margin-top:12px">
+      <div class="hint2">Enter <b>your actual system</b> — your own sensors, safety responses and controller, with their real specs. The lab runs the same attacks on <b>your hardware</b>, not the stock library. This is the honest first step of "we model your system."</div>
+      <div class="bar" style="margin-bottom:8px">
+        <label style="color:var(--muted);font-size:12px">System name <input id="wizName" value="My system" style="margin-left:4px;width:150px;font:inherit;padding:6px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"></label>
+        <label style="color:var(--muted);font-size:12px">Hazard word <input id="wizHazard" value="person / obstacle" style="margin-left:4px;width:130px;font:inherit;padding:6px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"></label>
+        <label style="color:var(--muted);font-size:12px">Collision word <input id="wizLeaked" value="Collision" style="margin-left:4px;width:120px;font:inherit;padding:6px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"></label>
+      </div>
+      <div class="dgroup"><div class="gt">Sensors <button class="addrow" data-tbl="wizSensors">+ add sensor</button></div><table id="wizSensors" class="wiztbl"></table></div>
+      <div class="dgroup"><div class="gt">Safety responses <button class="addrow" data-tbl="wizResponses">+ add response</button></div><table id="wizResponses" class="wiztbl"></table></div>
+      <div class="dgroup"><div class="gt">Controller</div>
+        <div class="bar"><label style="color:var(--muted);font-size:12px">Controller name <input id="wizC2Name" value="My controller" style="margin-left:4px;width:150px;font:inherit;padding:6px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px"></label>
+          <label style="color:var(--muted);font-size:12px">Security resilience <input id="wizC2Res" type="range" min="0" max="100" value="50" style="vertical-align:middle"> <span id="wizC2ResV">50%</span></label>
+          <span class="scn" data-tip="How well the controller authenticates sensor feeds and rejects injected/forged data. Hardened ≈ 90%, standard ROS 2 ≈ 50%, legacy/unauthenticated ≈ 15%." style="cursor:help"><span class="iq">ⓘ</span></span>
+        </div>
+      </div>
+
+      <!-- Software / C2 + network architecture — the §14 attack-surface layers -->
+      <div class="dgroup"><div class="gt">Software &amp; network architecture <span style="font-size:11px;color:var(--muted);text-transform:none;letter-spacing:0">— <span class="accent" style="color:var(--accent)">[sim]</span> fields move the simulation · <span style="color:var(--muted)">[scope]</span> fields are recorded for the Swarm audit</span></div>
+        <div class="archgrid">
+          <label><span>Sensor→C2 protocol auth <span class="pbadge sim">[sim]</span></span><select id="arProto">${''}</select></label>
+          <label><span>Fusion node auth <span class="pbadge sim">[sim]</span></span><select id="arFusion"></select></label>
+          <label><span>Network segmentation <span class="pbadge sim">[sim]</span></span><select id="arSeg"></select></label>
+          <label><span>OT / site boundary <span class="pbadge sim">[sim]</span></span><select id="arOT"><option value="iso">Isolated</option><option value="exp">Exposed (reachable from site)</option></select></label>
+          <label><span>Operator console / HMI <span class="pbadge scope">[scope]</span></span><select id="arConsole"></select></label>
+          <label><span>Integration APIs / command bus <span class="pbadge scope">[scope]</span></span><select id="arApis"></select></label>
+          <label><span>External C2 link (TAK/force net) <span class="pbadge scope">[scope]</span></span><select id="arExt"></select></label>
+          <label><span>AI/ML fusion or classification <span class="pbadge scope">[scope]</span></span><select id="arML"><option value="no">Not used</option><option value="yes">Used (adversarial-ML in scope)</option></select></label>
+        </div>
+        <div class="bar" style="margin-top:8px"><span style="color:var(--muted);font-size:12px">Protocols in use:</span>
+          <label style="color:var(--muted);font-size:12px"><input type="checkbox" class="arProtoChk" value="SAPIENT" checked> SAPIENT</label>
+          <label style="color:var(--muted);font-size:12px"><input type="checkbox" class="arProtoChk" value="CoT/TAK" checked> CoT/TAK</label>
+          <label style="color:var(--muted);font-size:12px"><input type="checkbox" class="arProtoChk" value="proprietary"> proprietary</label>
+        </div>
+      </div>
+      <div style="margin-top:4px"><button class="primary" id="importGo">Import &amp; run my system</button> <span id="importMsg" style="font-size:12px;color:var(--muted)"></span></div>
+    </div>
+
+    <!-- JSON panel: for the technical user who wants the full profile -->
+    <div id="addRobot" style="display:none;margin-top:12px">
+      <div class="hint2">Describe your robot as a JSON profile (sensors/outcomes/world + inline <code>custom_components</code> for your own hardware). Minimal is fine — missing fields get sensible defaults. Example is pre-filled. Click <b>Load this robot</b> to run it immediately.</div>
+      <textarea id="profileJson" spellcheck="false" style="width:100%;height:220px;font:12px/1.5 var(--mono);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px"></textarea>
+      <div style="margin-top:8px"><button class="primary" id="loadRobotBtn">Load this robot</button> <span id="addRobotMsg" style="font-size:12px;color:var(--muted)"></span></div>
+    </div>
+  </div>
+
+  <div class="card" id="designCard">
+    <h2>1 · Design your robot's safety stack <span class="pill">real products, published specs</span></h2>
+    <div class="hint2">Load a preset, or pick the real components and how many of each. Leave all at 0 to use a default layout. Hover any <span style="color:var(--accent)">ⓘ</span> for specs + source. <b style="color:var(--warn)">*</b> next to a range = the vendor does not publicly disclose it (sim assumption). <span class="tag legacy">legacy</span> = older generation.</div>
+    <div id="presets" class="presets"></div>
+    <div id="design"></div>
+  </div>
+
+  <div class="bar">
+    <label class="scn" data-tip="Hazards: people / obstacles moving into the robot's path that MUST be detected and safely handled (stop or avoid). 'Collisions' counts how many reach the robot un-handled." style="color:var(--muted);font-size:13px">Hazards <span class="iq">ⓘ</span>
+      <input id="nh" type="number" min="1" max="40" value="8" style="width:58px;font:inherit;padding:7px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px">
+    </label>
+    <label class="scn" data-tip="Cleared objects: things correctly judged safe to pass (not in the robot's way). They test whether the safety system wrongly HALTS for nothing. A needless halt = 'False stop' (an availability failure). Set above 0 and run a Misclassification / Spoofed-command attack to see false stops rise." style="color:var(--muted);font-size:13px">Cleared <span class="iq">ⓘ</span>
+      <input id="nb" type="number" min="0" max="40" value="4" style="width:58px;font:inherit;padding:7px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:7px">
+    </label>
+    <button class="primary" id="runAll">▶ 2 · Run full assessment</button>
+    <select id="single"></select>
+    <button id="runOne">Run single attack</button>
+    <button id="runCmp">⚖ Compare two presets</button>
+    <button id="exportCsv" disabled title="Run an assessment first">⭳ Download results (CSV)</button>
+  </div>
+
+  <div class="card" id="cmpCard" style="display:none">
+    <h2>Compare two designs <span class="pill">which safety stack prevents more collisions under attack?</span></h2>
+    <div class="hint2">Pick two presets. Each is run against the baseline and every attack; the table shows how many hazards each design lets collide (lower is better). The column with fewer collisions wins each row.</div>
+    <div class="cmpwrap" style="margin-bottom:12px">
+      <div class="cmpcol"><label>Design A</label><select id="cmpA"></select></div>
+      <div class="cmpcol"><label>Design B</label><select id="cmpB"></select></div>
+    </div>
+    <button class="primary" id="runCmpGo">Run comparison</button>
+    <div id="cmpResult" style="margin-top:16px"></div>
+  </div>
+
+  <div class="card" id="asCard" style="display:none">
+    <h2>Imported system — attack surface <span class="pill">§14 map · what we simulate vs. audit</span></h2>
+    <div class="hint2"><span class="accent" style="color:var(--accent)">[sim]</span> rows drive the simulation above · <span style="color:var(--muted)">[scope]</span> rows are recorded as the Swarm audit target list (the lab models the physical kill-chain, not the C2 code).</div>
+    <div style="overflow:auto"><table id="asTable"></table></div>
+  </div>
+
+  <div class="card" id="tableCard" style="display:none">
+    <h2>Baseline vs. attacks <span class="pill">lower Safely-handled / higher Collisions = worse</span></h2>
+    <div id="designHealth"></div>
+    <div style="overflow:auto"><table id="tbl"></table></div>
+  </div>
+
+  <div class="card" id="chartCard" style="display:none">
+    <h2>Impact vs. baseline <span class="pill">longer red bar = more damage the attack caused</span></h2>
+    <div class="hint2">Results are <b>averaged over several random runs</b>, so values can be fractional and a result <b>within run-to-run noise shows as “~”</b> (no real effect) rather than a misleading ±1. An attack can only ever <b>harm</b> safety, so <b>safely-handled hazards are capped at the clean baseline</b> for each run — an attack can never read as improving safety. Note: the <b>Safely handled</b> and <b>Collisions</b> charts mirror each other by design — a hazard that isn't handled collides (Safely handled + Collisions + Unresolved = total hazards). This is expected, not a duplicate.</div>
+    <div class="chartgrid" id="charts"></div>
+  </div>
+
+  <div class="card">
+    <div class="note" id="legend">Click <b>Run full assessment</b> to execute every attack against the lab pipeline and measure the impact. This runs the real engine — it takes a few seconds.</div>
+  </div>
+</div>
+
+<script>
+const S = document.getElementById('status')
+const LAB_VERSION = 'v0.2.0'
+const METRIC_HINT = { "Safely handled":"down", "Collisions":"up", "False stops":"up", "Phantom detections":"up", "Wasted responses":"up", "Track gap %":"up", "RMSE (m)":"up" }
+// "worse" direction: for Safely handled, lower is worse; for the rest, higher is worse.
+
+// Plain-language definitions for every metric (hover tooltips on the column headers & charts).
+const METRIC_TIP = {
+  "Safely handled": "Hazards (people/obstacles) the robot stopped for or avoided in time before contact. Higher is better. The whole point of the safety system.",
+  "Collisions": "Hazards that reached the robot un-handled — the safety failures. Higher is worse. This is the number that actually matters.",
+  "Unresolved": "Hazards still approaching when the simulation ended (neither handled nor collided yet). Accounting only — kept so Safely handled + Collisions + Unresolved = total hazards. Not an impact metric.",
+  "False stops": "Cleared (safe) objects the robot halted or reacted to by mistake. Should be 0. Rises when an attack corrupts classification — a key AVAILABILITY failure (a robot that stops for nothing does no work).",
+  "Phantom detections": "Confirmed obstacles that correspond to nothing real. Created by injection/flooding attacks. They trigger needless stops and can hide real hazards.",
+  "Wasted responses": "Safe-stops / re-plans spent on phantoms instead of real hazards. Each burns finite safety-response capacity (cooldown) and leaves a real hazard un-handled.",
+  "Track gap %": "Share of the time a real hazard was NOT being tracked (lost or never detected). Higher is worse — a hazard you aren't tracking is one you can't avoid. 100% = the robot is blind to it.",
+  "RMSE (m)": "Perception position error (root-mean-square) — how far the robot's estimate of an object is from where it really is. Higher is worse; large values mean the safety zone is placed in the wrong spot.",
+};
+const BASELINE_TIP = "The CONTROL run: your safety stack against the hazards with the data pipeline completely untouched — no attacker interfering. It answers 'how safe is this robot when nobody is attacking its software?'. Every attack row below is compared against this baseline; the difference is the measured impact of that attack. Averaged over several random runs.";
+
+async function j(url){ const r = await fetch(url); if(!r.ok) throw new Error((await r.json()).error||r.status); return r.json() }
+
+let ACTIVE_PROFILE = '';   // '' = default warehouse AMR
+// Display labels for the metrics, overridden per robot profile (keys stay stable internally).
+// The engine always returns the same keys; only what we SHOW changes.
+let TERMS = {};
+function L(key){ // label for a metric column, honouring the active profile's vocabulary
+  const map = {"Safely handled": TERMS.handled, "Collisions": TERMS.leaked, "False stops": TERMS.false};
+  return map[key] || key;
+}
+
+// POST a run with the current design + counts + active robot profile
+async function runScenario(attackKey){
+  const body = { attack: attackKey,
+                 hazards: +document.getElementById('nh').value||4,
+                 cleared: +document.getElementById('nb').value||3,
+                 design: collectDesign(),
+                 profile: ACTIVE_PROFILE || undefined }
+  const r = await fetch('/api/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+  if(!r.ok) throw new Error((await r.json()).error||r.status)
+  const res = await r.json()
+  if(res.terms) TERMS = res.terms
+  if(res.attack_surface){ ATTACK_SURFACE = res.attack_surface; renderAttackSurface() }
+  return res
+}
+let ATTACK_SURFACE = null
+function renderAttackSurface(){
+  const card = document.getElementById('asCard'), tbl = document.getElementById('asTable')
+  if(!ATTACK_SURFACE || !ATTACK_SURFACE.length){ card.style.display='none'; return }
+  tbl.innerHTML = ATTACK_SURFACE.map(r=>{
+    const tag = r.drives_sim ? '<span class="pbadge sim">[sim]</span>' : '<span class="pbadge scope">[scope]</span>'
+    return `<tr><td style="width:40px">${tag}</td><td class="l" style="width:280px">${r.layer}</td><td>${r.detail}</td></tr>`
+  }).join('')
+  card.style.display=''
+}
+
+const GROUP_LABEL = {lidar:'Perception — LiDAR / safety scanners', camera:'Perception — Cameras (depth/vision)', ranging:'Perception — Radar / Ultrasonic / RF', marine:'Perception — Marine (radar / AIS / sonar)', response:'Safety responses (what the robot does)', c2:'Safety controller (the brain)'}
+let COMPONENTS = []
+async function loadComponents(){
+  COMPONENTS = await j('/api/components' + (ACTIVE_PROFILE ? ('?profile='+encodeURIComponent(ACTIVE_PROFILE)) : ''))
+  const host = document.getElementById('design'); host.innerHTML = ''
+  const groups = {}
+  COMPONENTS.forEach(c=>{ (groups[c.group]=groups[c.group]||[]).push(c) })
+  for(const g of ['lidar','camera','ranging','marine','response','c2']){
+    if(!groups[g]) continue
+    let html = `<div class="dgroup"><div class="gt">${GROUP_LABEL[g]||g}</div><div class="cgrid">`
+    groups[g].forEach(c=>{
+      const rng = c.range_m ? `${(c.range_m/1000).toFixed(1)} km${c.range_disclosed===false?'*':''}` : ''
+      const res = (c.resilience!=null) ? `resilience ${Math.round(c.resilience*100)}%` : ''
+      const spec = [rng, c.fov_az?`${c.fov_az}°`:'', res].filter(Boolean).join(' · ')
+      // default starter design for the warehouse AMR (a SOUND layered stack that holds at baseline).
+      // For any other profile we start everything at 0 and let the user load that profile's preset.
+      const DEFAULT_ON = ACTIVE_PROFILE ? {} : {ouster_os1:1, sick_microscan3:2, realsense_d455:1, ti_mmwave:1,
+                          emergency_stop:2, dynamic_replan:1, ctrl_hardened:1}
+      const def = DEFAULT_ON[c.id] || 0
+      const flags = [c.origin?`Origin: ${c.origin}`:'',
+                     c.legacy?'LEGACY / older generation':'',
+                     c.range_disclosed===false?'* effective range NOT publicly disclosed — the figure shown is a sim assumption':'',
+                     c.spec_note?('Note: '+c.spec_note):''].filter(Boolean).join('  ·  ')
+      // full info -> hover tooltip (origin, band, range, note, flags, source)
+      const tip = [c.origin?`[${c.origin}]`:'', c.band||'', c.range_m?`Range ${(c.range_m/1000).toFixed(1)} km`:'', c.fov_az?`FoV ${c.fov_az}° az`:'',
+                   res, c.note||'', c.extra||'', flags, c.src?('Source: '+c.src):''].filter(Boolean).join('  ·  ')
+      const badge = c.legacy ? ' <span class="tag legacy">legacy</span>'
+                  : (c.origin==='Singapore' ? ' <span class="tag sg">SG</span>' : '')
+      html += `<div class="comp" data-tip="${tip.replace(/"/g,'&quot;')}">`+
+              `<div class="cn"><b>${c.name} <span class="iq">ⓘ</span>${badge}</b><div class="cs">${spec}</div></div>`+
+              `<input type="number" min="0" max="20" value="${def}" data-id="${c.id}" data-group="${c.group}"></div>`
+    })
+    html += `</div></div>`
+    host.insertAdjacentHTML('beforeend', html)
+  }
+}
+function collectDesign(){
+  const sensors = {}, responses = {}, c2 = {}
+  document.querySelectorAll('#design input').forEach(inp=>{
+    const n = +inp.value||0; if(n<=0) return
+    const g = inp.dataset.group
+    if(g==='response') responses[inp.dataset.id]=n
+    else if(g==='c2') c2[inp.dataset.id]=n
+    else sensors[inp.dataset.id]=n
+  })
+  return {sensors, responses, c2}
+}
+
+let ATTACK_DESC = {}   // name -> rich tooltip (desc + modelling basis + standard mapping)
+let ATTACK_META = {}   // key -> {desc, basis, ref, name} for the CSV export
+// Build the full hover text for an attack: what it does, the modelling basis, the standard it maps to.
+function attackTip(a){
+  return [a.desc || '',
+          a.basis ? ('Modelling basis: ' + a.basis) : '',
+          a.ref   ? ('Maps to: ' + a.ref) : ''
+         ].filter(Boolean).join('   ·   ')
+}
+async function loadCatalog(){
+  const cat = await j('/api/catalog')
+  const sel = document.getElementById('single')
+  cat.forEach(a=>{ ATTACK_DESC[a.name] = attackTip(a); ATTACK_META[a.key] = a })
+  sel.innerHTML = cat.map(a=>`<option value="${a.key}" title="${attackTip(a).replace(/"/g,'&quot;')}">${a.name} — ${a.maps_to}</option>`).join('')
+}
+
+function cls(metric, val, base){
+  // Only flag genuine DAMAGE (red). An attack scoring "better" than baseline is noise,
+  // not a benefit — don't colour it green (that implies the attack helped). "In flight"
+  // is accounting only and is never coloured. Values are seed-AVERAGED, so apply a small
+  // tolerance: a sub-noise wobble (< ~0.6 of a kill, or < 1 m RMSE) is not flagged as damage.
+  if(metric==="Unresolved") return ""
+  const tol = (metric==="RMSE (m)") ? 1.0 : (metric==="Track gap %" ? 1.5 : 0.6)
+  if(metric==="Safely handled") return (base - val) > tol ? "worse" : ""
+  return (val - base) > tol ? "worse" : ""
+}
+
+function renderHealth(base){
+  // "design health" = how the safety stack does at BASELINE (no attack). If it already collides
+  // a lot, attacks can't show much extra impact — the design is failing on its own.
+  const el = document.getElementById('designHealth')
+  if(!el) return
+  const handled = base['Safely handled']||0, collide = base['Collisions']||0, unres = base['Unresolved']||0
+  const total = handled + collide + unres
+  if(total <= 0){ el.innerHTML = ''; return }
+  const collPct = collide/total
+  let cls, title, msg
+  const totR = Math.round(total)
+  if(collPct <= 0.1){
+    cls='sound'; title='Design health: SOUND'
+    msg=`At baseline (no attack) this safety stack handles <b>${handled}/${totR}</b> hazards on average — it holds. The attack rows below show what each attack <b>strips away</b> from a working design (this is where the safety impact is visible). Values are averaged over several random runs, so they can be fractional.`
+  } else if(collPct < 0.5){
+    cls='weak'; title='Design health: MARGINAL'
+    msg=`At baseline this design already lets <b>${collide}/${totR}</b> hazards collide before any attack. It's partly failing on its own, so attack impact will be partly masked. Load a stronger preset to see attacks clearly.`
+  } else {
+    cls='fail'; title='Design health: FAILING'
+    msg=`⚠ At baseline — with <b>no attack at all</b> — this design already lets <b>${collide}/${totR}</b> hazards collide. A safety stack this weak fails by itself, so the attacks below have little left to break. This is a real finding: a weak sensor/response architecture is unsafe without any attacker. To see what attacks <i>add</i>, load the <b>Strong (layered)</b> preset and run again.`
+  }
+  el.className = 'dhealth '+cls
+  el.innerHTML = `<div class="dh-title">${title}</div>${msg}`
+}
+
+let LAST_RESULT = null   // last rendered assessment, for CSV export
+function renderTable(data){
+  const {metric_keys, rows} = data
+  const base = rows[0].metrics
+  LAST_RESULT = data
+  const ex = document.getElementById('exportCsv'); if(ex){ ex.disabled = false; ex.title = 'Download the table above as CSV' }
+  renderHealth(base)
+  // column headers carry a ⓘ with the metric's plain-language definition
+  const headCells = metric_keys.map(k=>{
+    const mt = METRIC_TIP[k]
+    return mt ? `<th class="scn" data-tip="${mt.replace(/"/g,'&quot;')}">${L(k)} <span class="iq">ⓘ</span></th>`
+              : `<th>${L(k)}</th>`
+  }).join("")
+  let h = "<thead><tr><th>Scenario</th>" + headCells + "</tr></thead><tbody>"
+  rows.forEach((r,i)=>{
+    const rowcls = i===0 ? "base" : "hot"
+    // baseline row gets the baseline explanation; attack rows get the attack description
+    const tip = i===0 ? BASELINE_TIP : (ATTACK_DESC[r.scenario]||'')
+    const nameCell = tip
+      ? `<td class="scn" data-tip="${tip.replace(/"/g,'&quot;')}">${r.scenario} <span class="iq">ⓘ</span></td>`
+      : `<td>${r.scenario}</td>`
+    h += `<tr class="${rowcls}">${nameCell}` + metric_keys.map(k=>{
+      const v = r.metrics[k]
+      const c = i===0 ? "" : cls(k, v, base[k])
+      return `<td class="${c}">${v}</td>`
+    }).join("") + "</tr>"
+  })
+  h += "</tbody>"
+  const t = document.getElementById('tbl'); t.innerHTML = h
+  document.getElementById('tableCard').style.display = ""
+  renderCharts(data)
+}
+
+function renderCharts(data){
+  const {metric_keys, rows} = data
+  const host = document.getElementById('charts'); host.innerHTML = ""
+  if (rows.length < 2){ document.getElementById('chartCard').style.display="none"; return }
+  const base = rows[0].metrics
+  const attacks = rows.slice(1)
+  // For each metric, "worse" direction: Neutralised lower=worse; everything else higher=worse.
+  // We chart the DELTA vs baseline, always as "damage" (positive = worse).
+  const WORSE_IF_LOWER = { "Safely handled": true }
+  const SKIP = { "Unresolved": true }           // accounting only — not an impact metric
+  const short = (name)=> name.replace(/ \(.*\)/,'').replace('Sensor ','').replace('/ ','/')
+
+  metric_keys.filter(k=>!SKIP[k]).forEach(k=>{
+    const lowerWorse = !!WORSE_IF_LOWER[k]
+    // damage = how much WORSE than baseline (always positive = bad). For "lower is worse"
+    // metrics (Neutralised) a drop is damage. The BAR uses this damage value.
+    const dmg = attacks.map(r=> lowerWorse ? (base[k]-r.metrics[k]) : (r.metrics[k]-base[k]))
+    const maxd = Math.max(1, ...dmg.map(Math.abs))
+    // the printed NUMBER shows the real change in the metric, so the sign always reads naturally:
+    //   Safely-handled falling 12->5 prints "-7" (red), not "+7". Collisions rising prints "+7" (red).
+    const realDelta = attacks.map(r=> r.metrics[k]-base[k])
+    const title = lowerWorse ? `${L(k)} — no longer handled by the attack` : `${L(k)} — impact vs baseline`
+    // noise tolerance: results are seed-averaged, so treat sub-noise wobble as "no real effect".
+    const tol = (k==="RMSE (m)") ? 1.0 : (k==="Track gap %" ? 1.5 : 0.6)
+    const mt = METRIC_TIP[k] || ''
+    const info = mt ? ` <span class="scn" data-tip="${mt.replace(/"/g,'&quot;')}" style="cursor:help"><span class="iq">ⓘ</span></span>` : ''
+    let inner = `<div class="chart"><h3>${title}${info} <span class="base">(base ${base[k]})</span></h3>`
+    attacks.forEach((r,i)=>{
+      const d = dmg[i]                 // DAMAGE (positive = worse than baseline; negative = "better")
+      const rd = realDelta[i]          // actual metric change (for the printed number when it IS real damage)
+      // An attack can only ever HARM the defence. Anything that isn't real damage above the
+      // noise band — including a result that merely looks "better than baseline" — is noise,
+      // so it shows as "~". This prevents an attack ever appearing to IMPROVE the system.
+      const worse = d > tol
+      const w = Math.round(100*Math.abs(d)/maxd)
+      const sign = rd>0?'+':''
+      const label = worse ? (sign+Math.round(rd*10)/10) : '~'
+      inner += `<div class="rowbar"><span class="lbl" title="${r.scenario}">${short(r.scenario)}</span>`+
+               `<span class="track"><span class="fill ${worse?'bad':'flat'}" style="width:${worse?w:0}%"></span></span>`+
+               `<span class="val ${worse?'vbad':''}">${label}</span></div>`
+    })
+    inner += `</div>`
+    host.insertAdjacentHTML('beforeend', inner)
+  })
+  document.getElementById('chartCard').style.display = ""
+}
+
+// ---- CSV export: a hand-off deliverable with the scope caveat baked in ----
+function describeDesign(){
+  // read the current component inputs into a human string for the report header
+  const parts = []
+  document.querySelectorAll('#design input').forEach(inp=>{
+    const n = +inp.value||0; if(n<=0) return
+    const comp = COMPONENTS.find(c=>c.id===inp.dataset.id)
+    parts.push(`${n}x ${comp?comp.name:inp.dataset.id}`)
+  })
+  return parts.join('; ') || '(default layout)'
+}
+document.getElementById('exportCsv').onclick = ()=>{
+  if(!LAST_RESULT) return
+  const {metric_keys, rows} = LAST_RESULT
+  const esc = s => `"${String(s).replace(/"/g,'""')}"`
+  const L = []
+  // provenance + mandatory scope caveat travel WITH the data
+  L.push(esc('Robotics Safety Lab — measured attack impact'))
+  L.push(esc('Generated: '+new Date().toISOString()))
+  L.push(esc('Design: '+describeDesign()))
+  L.push(esc('Hazards: '+(document.getElementById('nh').value)+'  Cleared objects: '+(document.getElementById('nb').value)))
+  L.push(esc('Lab version: '+LAB_VERSION+'   Seeds averaged: '+(LAST_RESULT.rows[0] && LAST_RESULT.rows[0].seeds || '?')))
+  L.push(esc('SCOPE: Representative lab. Sensor specs are real (manufacturer-published); behaviour is MODELLED from those specs. NOT a real robot, not any customer deployment, not an exploit of a real robot bus. Results are seed-averaged and faithful IN KIND; exact magnitudes on a real system require an actual assessment.'))
+  L.push(esc('NOTE: "Safely handled" and "Collisions" are complementary by design (a hazard not handled collides), so the two columns mirror each other — this is accounting, not a duplicate. "Unresolved" = still approaching at sim end; Safely handled + Collisions + Unresolved = total hazards.'))
+  L.push(esc('NOTE: each attack shows the DIRECTION of impact; magnitudes are modelled, not measured on a real system (see per-attack basis below).'))
+  L.push('')   // blank line
+  // results table
+  L.push(['Scenario', ...metric_keys].map(esc).join(','))
+  rows.forEach(r=>{ L.push([r.scenario, ...metric_keys.map(k=>r.metrics[k])].map(esc).join(',')) })
+  // per-attack provenance: modelling basis + standard it maps to (credibility chain travels with the data)
+  L.push('')
+  L.push(['Attack', 'Maps to (standard / interface)', 'Modelling basis'].map(esc).join(','))
+  rows.forEach(r=>{
+    if(r.key==='baseline') return
+    const a = ATTACK_META[r.key] || {}
+    L.push([r.scenario, a.ref||'', a.basis||''].map(esc).join(','))
+  })
+  const blob = new Blob([L.join('\r\n')], {type:'text/csv;charset=utf-8'})
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'cuas-lab-results-'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.csv'
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href)
+}
+
+document.getElementById('runAll').onclick = async ()=>{
+  const btn = document.getElementById('runAll'); btn.disabled = true
+  const rows = []
+  try{
+    // run baseline first, then each attack — updating the table after each (live progress)
+    const cat = await j('/api/catalog')
+    const keys = ['baseline', ...cat.map(a=>a.key)]
+    for(let i=0;i<keys.length;i++){
+      S.textContent = `running real engine… ${i+1}/${keys.length}`
+      const row = await runScenario(keys[i])
+      rows.push(row)
+      renderTable({metric_keys:Object.keys(rows[0].metrics), rows:rows.slice()})
+    }
+    S.textContent = "done — measured results below."
+  }catch(e){ S.textContent = "error: "+e.message }
+  btn.disabled = false
+}
+document.getElementById('runOne').onclick = async ()=>{
+  const key = document.getElementById('single').value
+  S.textContent = "running "+key+"…"
+  try{
+    const base = await runScenario('baseline')
+    const one = await runScenario(key)
+    renderTable({metric_keys:Object.keys(base.metrics), rows:[base, one]})
+    S.textContent = "done."
+  }catch(e){ S.textContent = "error: "+e.message }
+}
+// custom hover tooltip (instant, reliable — native title is too slow/subtle)
+const tipEl = document.getElementById('tip')
+document.addEventListener('mouseover', e=>{
+  const cell = e.target.closest && e.target.closest('[data-tip]')
+  if(cell && cell.dataset.tip){ tipEl.textContent = cell.dataset.tip; tipEl.style.display='block' }
+})
+document.addEventListener('mousemove', e=>{
+  if(tipEl.style.display==='block'){
+    let x = e.clientX + 16, y = e.clientY + 16
+    if(x + 370 > window.innerWidth) x = e.clientX - 376
+    if(y + 120 > window.innerHeight) y = e.clientY - 120
+    tipEl.style.left = x+'px'; tipEl.style.top = y+'px'
+  }
+})
+document.addEventListener('mouseout', e=>{
+  if(e.target.closest && e.target.closest('[data-tip]')) tipEl.style.display='none'
+})
+
+// ---- Presets: one-click load a real design into the component inputs ----
+let PRESETS = []
+function presetCounts(p){
+  // flatten a preset design ({sensors,effectors,c2}) into {componentId: count}
+  const out = {}
+  const d = p.design || {}
+  ;['sensors','effectors','c2'].forEach(k=>{ Object.assign(out, d[k]||{}) })
+  return out
+}
+function applyPreset(p, btn){
+  const counts = presetCounts(p)
+  document.querySelectorAll('#design input').forEach(inp=>{
+    inp.value = counts[inp.dataset.id] || 0
+  })
+  document.querySelectorAll('.presets .pbtn').forEach(b=>b.classList.remove('active'))
+  if(btn) btn.classList.add('active')
+}
+async function loadPresets(){
+  PRESETS = await j('/api/presets')
+  const host = document.getElementById('presets'); host.innerHTML = ''
+  PRESETS.forEach(p=>{
+    const b = document.createElement('button')
+    b.className = 'pbtn'
+    const rtag = p.robot ? `<span class="tag sg" style="margin-bottom:2px">${p.robot}</span>` : ''
+    b.innerHTML = `${rtag}<b>${p.name}</b><span class="pn">${p.note||''}</span>`
+    b.onclick = ()=>applyPreset(p, b)
+    host.appendChild(b)
+  })
+  // also fill the compare selectors
+  const opt = PRESETS.map((p,i)=>`<option value="${i}">${p.name}</option>`).join('')
+  const a = document.getElementById('cmpA'), c = document.getElementById('cmpB')
+  a.innerHTML = opt; c.innerHTML = opt
+  if(PRESETS.length>1) c.value = PRESETS.length-1   // default: strongest vs weakest
+}
+
+// ---- Compare: run two presets across baseline + all attacks, show who protects better ----
+async function runPresetScenario(preset, attackKey){
+  const body = { attack: attackKey,
+                 hazards: +document.getElementById('nh').value||8,
+                 cleared: +document.getElementById('nb').value||4,
+                 design: preset.design }
+  const r = await fetch('/api/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+  if(!r.ok) throw new Error((await r.json()).error||r.status)
+  return r.json()
+}
+document.getElementById('runCmp').onclick = ()=>{
+  const card = document.getElementById('cmpCard')
+  card.style.display = card.style.display==='none' ? '' : 'none'
+  if(card.style.display==='') card.scrollIntoView({behavior:'smooth', block:'nearest'})
+}
+document.getElementById('runCmpGo').onclick = async ()=>{
+  const out = document.getElementById('cmpResult')
+  if(!PRESETS.length){
+    out.innerHTML = '<div class="verdict" style="color:var(--bad)">Presets failed to load — reload the page.</div>'
+    return
+  }
+  const A = PRESETS[+document.getElementById('cmpA').value] || PRESETS[0]
+  const B = PRESETS[+document.getElementById('cmpB').value] || PRESETS[PRESETS.length-1]
+  const btn = document.getElementById('runCmpGo'); btn.disabled = true
+  out.innerHTML = ''
+  try{
+    const cat = await j('/api/catalog')
+    const keys = ['baseline', ...cat.map(a=>a.key)]
+    const names = ['No attack (baseline)', ...cat.map(a=>a.name)]
+    const rowsA = [], rowsB = []
+    for(let i=0;i<keys.length;i++){
+      S.textContent = `comparing… ${i+1}/${keys.length}`
+      const [ra, rb] = await Promise.all([runPresetScenario(A, keys[i]), runPresetScenario(B, keys[i])])
+      rowsA.push(ra); rowsB.push(rb)
+      renderCompare(A, B, names, rowsA, rowsB)
+    }
+    S.textContent = 'comparison done.'
+  }catch(e){
+    S.textContent = 'error: '+e.message
+    out.innerHTML = '<div class="verdict" style="color:var(--bad)">Comparison failed: '+e.message+'</div>'
+  }
+  btn.disabled = false
+}
+function renderCompare(A, B, names, rowsA, rowsB){
+  // headline metric = Collisions (hazards that reached the robot). Lower wins.
+  let winA = 0, winB = 0, leakA = 0, leakB = 0
+  let h = `<div style="overflow:auto"><table><thead><tr>`+
+          `<th>Scenario</th><th class="cmpa">${A.name}<br><span style="font-weight:400;color:var(--muted)">Collisions · Safely handled</span></th>`+
+          `<th class="cmpb">${B.name}<br><span style="font-weight:400;color:var(--muted)">Collisions · Safely handled</span></th>`+
+          `<th>Safer here</th></tr></thead><tbody>`
+  // render only the scenarios collected so far (called progressively as runs complete)
+  const done = Math.min(rowsA.length, rowsB.length)
+  for(let i=0;i<done;i++){
+    const nm = names[i]
+    const la = rowsA[i].metrics['Collisions'], lb = rowsB[i].metrics['Collisions']
+    const ka = rowsA[i].metrics['Safely handled'], kb = rowsB[i].metrics['Safely handled']
+    leakA += la; leakB += lb
+    let better = '—', aCls = '', bCls = ''
+    if(la < lb){ better = A.name; winA++; aCls = 'wincol' }
+    else if(lb < la){ better = B.name; winB++; bCls = 'wincol' }
+    h += `<tr class="${i===0?'base':'hot'}"><td>${nm}</td>`+
+         `<td class="cmpa ${aCls}">${la} · ${ka}</td>`+
+         `<td class="cmpb ${bCls}">${lb} · ${kb}</td>`+
+         `<td>${better}</td></tr>`
+  }
+  h += `</tbody></table></div>`
+  // verdict (only final, once all scenarios are in)
+  let verdict
+  if(leakA < leakB) verdict = `<b>${A.name}</b> was safer overall — ${leakA} total collisions vs ${leakB} for ${B.name}, and it won ${winA} of ${done} scenarios.`
+  else if(leakB < leakA) verdict = `<b>${B.name}</b> was safer overall — ${leakB} total collisions vs ${leakA} for ${A.name}, and it won ${winB} of ${done} scenarios.`
+  else verdict = `Both designs had the same total collisions (${leakA}). They trade scenarios: ${A.name} won ${winA}, ${B.name} won ${winB}.`
+  h += `<div class="verdict">${verdict}</div>`
+  h += `<div class="hint2" style="margin-top:8px">Cells show <b>Collisions · Safely handled</b> (seed-averaged; lower Collisions is better). Same scope as the main run: real specs, modelled behaviour — not a real robot. “Collisions” is the headline because it's the number that decides whether someone gets hurt.</div>`
+  document.getElementById('cmpResult').innerHTML = h
+}
+
+// ---- Robot profiles: pick a robot type, or add your own ----
+const EXAMPLE_PROFILE = {
+  id: "fishing_boat",
+  name: "Autonomous fishing boat",
+  robot_class: "Marine autonomous surface vessel",
+  standard: "IMO COLREGs / MASS guidelines",
+  terms: { hazard: "vessel / rock / net", cleared: "buoy / permitted craft",
+           handled: "Safely avoided", leaked: "Collisions at sea", false: "Needless stops",
+           count_hazard: "Hazards", count_cleared: "Cleared craft" },
+  world: { hazard_speed: [8, 26], cleared_speed: [4, 12],
+           object_classes: [ {name:"vessel", reflectivity:1.0, rf:true},
+                             {name:"small_craft", reflectivity:0.6, rf:true},
+                             {name:"rock", reflectivity:0.8, rf:false},
+                             {name:"net_buoy", reflectivity:0.2, rf:false} ] },
+  components: { sensors:["marine_radar","ais_receiver","sonar","realsense_d455","gnss_marine"],
+               responses:["engine_cut","course_replan","slow_zone"],
+               controllers:["ctrl_hardened","ctrl_standard","ctrl_legacy"] },
+  // custom_components: your OWN hardware specs travel inline — the lab runs YOUR parts, not the library.
+  custom_components: [
+    {id:"my_marine_radar", name:"Our marine radar", kind:"radar", range_m:9000, fov_az:360, min_rcs:0.03},
+    {id:"my_crash_stop", name:"Our crash-stop", kind:"estop", range_m:800, defeat:"hard", defeats_rf_only:false},
+    {id:"my_c2", name:"Our vessel controller", kind:"c2", resilience:0.6}
+  ],
+  default_design: { sensors:{my_marine_radar:1, ais_receiver:1, sonar:1}, responses:{my_crash_stop:1, course_replan:1}, c2:{my_c2:1} }
+}
+async function loadProfiles(){
+  const list = await j('/api/profiles')
+  const sel = document.getElementById('profile')
+  sel.innerHTML = list.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')
+  // default to the warehouse AMR (id 'amr') if present
+  const amr = list.find(p=>p.id==='amr'); if(amr) sel.value='amr'
+  ACTIVE_PROFILE = (sel.value==='amr') ? '' : sel.value
+  updateProfileMeta(list)
+  sel.onchange = async ()=>{
+    ACTIVE_PROFILE = (sel.value==='amr') ? '' : sel.value
+    updateProfileMeta(list)
+    await loadComponents(); await loadPresets()
+    S.textContent = 'robot: '+sel.options[sel.selectedIndex].text+' — pick a preset or components, then Run.'
+  }
+}
+function updateProfileMeta(list){
+  const sel = document.getElementById('profile')
+  const p = (list||[]).find(x=>x.id===sel.value)
+  document.getElementById('profileMeta').textContent = p ? `${p.robot_class||''}${p.standard?('  ·  '+p.standard):''}` : ''
+}
+document.getElementById('addRobotBtn').onclick = ()=>{
+  const box = document.getElementById('addRobot')
+  const ta = document.getElementById('profileJson')
+  if(!ta.value.trim()) ta.value = JSON.stringify(EXAMPLE_PROFILE, null, 2)
+  document.getElementById('importWiz').style.display = 'none'
+  box.style.display = box.style.display==='none' ? '' : 'none'
+}
+
+// ---- "Import your system" form wizard: build a profile with the customer's OWN hardware ----
+const WIZ_SENSOR_KINDS = ["lidar","camera","radar","ultrasonic","rf"]
+const WIZ_RESP_KINDS = [["estop","Emergency stop"],["replan","Re-plan / avoid"],["slow","Slow-zone"],["rf_stop","RF-tag stop"]]
+function wizAddSensor(s){
+  s = s || {}
+  const tb = document.getElementById('wizSensors')
+  const tr = document.createElement('tr')
+  tr.innerHTML = `<td><input class="wn" placeholder="e.g. Our 360 radar" value="${s.name||''}"></td>`+
+    `<td><select class="wk">${WIZ_SENSOR_KINDS.map(k=>`<option ${s.kind===k?'selected':''}>${k}</option>`).join('')}</select></td>`+
+    `<td><input class="wr" type="number" min="100" step="100" placeholder="range m" value="${s.range_m||3000}"></td>`+
+    `<td><input class="wf" type="number" min="1" max="360" placeholder="FoV°" value="${s.fov_az||360}"></td>`+
+    `<td><input class="wrcs" type="number" min="0.01" step="0.01" placeholder="min-RCS" value="${s.min_rcs||0.05}" title="smallest target it detects (lower = more sensitive)"></td>`+
+    `<td style="text-align:center"><input class="wtag" type="checkbox" ${s.tag_only?'checked':''} title="only sees RF-tagged objects (blind to untagged)"></td>`+
+    `<td><input class="wc" type="number" min="1" step="1" placeholder="count" value="${s.count||1}"></td>`+
+    `<td><button class="delrow">✕</button></td>`
+  tr.querySelector('.delrow').onclick = ()=>tr.remove()
+  tb.appendChild(tr)
+}
+function wizAddResponse(r){
+  r = r || {}
+  const tb = document.getElementById('wizResponses')
+  const tr = document.createElement('tr')
+  tr.innerHTML = `<td><input class="wn" placeholder="e.g. Our e-stop" value="${r.name||''}"></td>`+
+    `<td><select class="wk">${WIZ_RESP_KINDS.map(([k,lbl])=>`<option value="${k}" ${r.kind===k?'selected':''}>${lbl}</option>`).join('')}</select></td>`+
+    `<td><input class="wr" type="number" min="100" step="100" placeholder="range m" value="${r.range_m||800}"></td>`+
+    `<td><select class="wdef" title="soft = jam/disrupt (RF-emitting drones only); hard = physically stop any"><option value="hard" ${r.defeat==='hard'?'selected':''}>hard-kill</option><option value="soft" ${r.defeat==='soft'?'selected':''}>soft-kill (RF)</option></select></td>`+
+    `<td><input class="wspd" type="number" min="0" step="1" placeholder="max tgt m/s" value="${r.max_target_speed||''}" title="fastest target it can handle (blank = any; nets/replan can't catch fast)"></td>`+
+    `<td><input class="wmag" type="number" min="0" step="1" placeholder="magazine" value="${r.magazine||''}" title="finite shots before reload (blank = effectively unlimited)"></td>`+
+    `<td><input class="wc" type="number" min="1" step="1" placeholder="count" value="${r.count||1}"></td>`+
+    `<td><button class="delrow">✕</button></td>`
+  tr.querySelector('.delrow').onclick = ()=>tr.remove()
+  tb.appendChild(tr)
+}
+const POSTURE_OPTS = [['0.9','Hardened / authenticated'],['0.5','Standard (basic auth)'],['0.15','Weak / unauthenticated'],['','Not specified']]
+function fillPosture(id, def){
+  const sel = document.getElementById(id); if(!sel) return
+  sel.innerHTML = POSTURE_OPTS.map(([v,l])=>`<option value="${v}" ${v===def?'selected':''}>${l}</option>`).join('')
+}
+function wizInit(){
+  document.getElementById('wizSensors').innerHTML = '<thead><tr><th>Name</th><th>Type</th><th>Range (m)</th><th>FoV°</th><th>min-RCS</th><th>tag-only</th><th>#</th><th></th></tr></thead>'
+  document.getElementById('wizResponses').innerHTML = '<thead><tr><th>Name</th><th>Type</th><th>Range (m)</th><th>Kill</th><th>max tgt m/s</th><th>magazine</th><th>#</th><th></th></tr></thead>'
+  wizAddSensor({name:"Our safety LiDAR", kind:"lidar", range_m:1800, fov_az:270, count:2})
+  wizAddSensor({name:"Our depth camera", kind:"camera", range_m:1200, fov_az:90, count:1})
+  wizAddResponse({name:"Our emergency stop", kind:"estop", range_m:800, defeat:"hard", count:2})
+  // architecture posture dropdowns
+  ;[['arProto','0.5'],['arFusion','0.5'],['arSeg','0.5'],['arConsole','0.5'],['arApis','0.5'],['arExt','']].forEach(([id,d])=>fillPosture(id,d))
+}
+document.querySelectorAll('.addrow').forEach(b=>{
+  b.onclick = ()=>{ b.dataset.tbl==='wizSensors' ? wizAddSensor() : wizAddResponse() }
+})
+document.getElementById('wizC2Res').oninput = (e)=>{ document.getElementById('wizC2ResV').textContent = e.target.value+'%' }
+document.getElementById('importBtn').onclick = ()=>{
+  const box = document.getElementById('importWiz')
+  document.getElementById('addRobot').style.display = 'none'
+  if(box.style.display==='none' && !document.querySelector('#wizSensors tr')) wizInit()
+  box.style.display = box.style.display==='none' ? '' : 'none'
+}
+function wizBuildProfile(){
+  const name = document.getElementById('wizName').value.trim() || 'My system'
+  const sensors = {}, responses = {}, custom = []
+  let idx = 0
+  document.querySelectorAll('#wizSensors tr').forEach(tr=>{
+    const n = tr.querySelector('.wn'); if(!n) return
+    const id = 'cs_'+(idx++)+'_'+(n.value.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_')||'sensor')
+    const cnt = +tr.querySelector('.wc').value||1
+    const tagOnly = tr.querySelector('.wtag').checked
+    custom.push({id, name:n.value.trim()||id, kind: tagOnly ? 'rf' : tr.querySelector('.wk').value,
+                 range_m:+tr.querySelector('.wr').value||3000, fov_az:+tr.querySelector('.wf').value||360,
+                 min_rcs:+tr.querySelector('.wrcs').value||0.05})
+    sensors[id] = cnt
+  })
+  document.querySelectorAll('#wizResponses tr').forEach(tr=>{
+    const n = tr.querySelector('.wn'); if(!n) return
+    const id = 'cr_'+(idx++)+'_'+(n.value.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_')||'resp')
+    const cnt = +tr.querySelector('.wc').value||1
+    const kind = tr.querySelector('.wk').value
+    const defeat = tr.querySelector('.wdef').value
+    const spd = tr.querySelector('.wspd').value, mag = tr.querySelector('.wmag').value
+    const comp = {id, name:n.value.trim()||id, kind, range_m:+tr.querySelector('.wr').value||800,
+                 defeat, defeats_rf_only: (kind==='rf_stop' || defeat==='soft')}
+    if(spd!=='') comp.max_target_speed = +spd
+    if(mag!=='') comp.magazine = +mag
+    custom.push(comp)
+    responses[id] = cnt
+  })
+  const c2id = 'cc_c2'
+  custom.push({id:c2id, name:document.getElementById('wizC2Name').value.trim()||'My controller',
+               kind:'c2', resilience:(+document.getElementById('wizC2Res').value||50)/100})
+  // architecture (software/C2 + network) — posture values, protocols, ML, OT exposure
+  const pv = id => { const v = document.getElementById(id).value; return v==='' ? null : +v }
+  const protocols = Array.from(document.querySelectorAll('.arProtoChk:checked')).map(c=>c.value)
+  const architecture = {
+    protocol_auth: pv('arProto'), fusion_auth: pv('arFusion'), segmentation: pv('arSeg'),
+    console: pv('arConsole'), apis: pv('arApis'), external_c2: pv('arExt'),
+    ot_exposed: document.getElementById('arOT').value==='exp',
+    uses_ml: document.getElementById('arML').value==='yes',
+    protocols
+  }
+  return {
+    id: name.toLowerCase().replace(/[^a-z0-9]+/g,'_'), name,
+    robot_class: 'Customer system (imported)',
+    terms: { hazard: document.getElementById('wizHazard').value.trim()||'hazard',
+             leaked: document.getElementById('wizLeaked').value.trim()||'Collisions' },
+    custom_components: custom,
+    architecture,
+    default_design: { sensors, responses, c2: { [c2id]: 1 } }
+  }
+}
+document.getElementById('importGo').onclick = async ()=>{
+  const msg = document.getElementById('importMsg')
+  const prof = wizBuildProfile()
+  if(!Object.keys(prof.default_design.sensors).length){ msg.style.color='var(--bad)'; msg.textContent='Add at least one sensor.'; return }
+  try{
+    const r = await fetch('/api/profile', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(prof)})
+    const res = await r.json(); if(!r.ok) throw new Error(res.error||r.status)
+    msg.style.color='var(--good)'; msg.textContent='Imported "'+res.id+'" — running…'
+    const sel = document.getElementById('profile')
+    sel.innerHTML = res.profiles.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')
+    sel.value = res.id; ACTIVE_PROFILE = res.id
+    updateProfileMeta(res.profiles)
+    await loadComponents(); await loadPresets()
+    // fill the design inputs with the imported system's own default design, then run it
+    applyPreset({design: prof.default_design})
+    document.getElementById('runAll').click()
+  }catch(e){ msg.style.color='var(--bad)'; msg.textContent='Error: '+e.message }
+}
+document.getElementById('loadRobotBtn').onclick = async ()=>{
+  const msg = document.getElementById('addRobotMsg')
+  let prof
+  try{ prof = JSON.parse(document.getElementById('profileJson').value) }
+  catch(e){ msg.style.color='var(--bad)'; msg.textContent='Invalid JSON: '+e.message; return }
+  try{
+    const r = await fetch('/api/profile', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(prof)})
+    const res = await r.json()
+    if(!r.ok) throw new Error(res.error||r.status)
+    msg.style.color='var(--good)'; msg.textContent='Loaded "'+res.id+'". Switching to it…'
+    // refresh the dropdown, select the new robot, reload its components + presets
+    const sel = document.getElementById('profile')
+    sel.innerHTML = res.profiles.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')
+    sel.value = res.id; ACTIVE_PROFILE = (res.id==='amr') ? '' : res.id
+    updateProfileMeta(res.profiles)
+    await loadComponents(); await loadPresets()
+    if(prof.default_design) applyPreset({design: prof.default_design})   // fill its own design
+    S.textContent = 'robot "'+res.id+'" loaded — pick a preset or components, then Run.'
+  }catch(e){ msg.style.color='var(--bad)'; msg.textContent='Error: '+e.message }
+}
+
+document.getElementById('ver').textContent = LAB_VERSION
+loadCatalog().catch(e=>S.textContent="error loading: "+e.message)
+// profiles first (sets ACTIVE_PROFILE), then components for that profile, then presets.
+loadProfiles()
+  .catch(e=>{ S.textContent="error loading profiles: "+e.message })
+  .finally(()=> loadComponents()
+    .catch(e=>{ S.textContent="error loading components: "+e.message })
+    .finally(()=>{ loadPresets().catch(e=>S.textContent="error loading presets: "+e.message) }))
+</script>
+</body>
+</html>

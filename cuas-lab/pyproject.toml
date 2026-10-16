@@ -1,0 +1,13 @@
+[project]
+name = "cuas-lab"
+version = "0.2.0"
+description = "Real-algorithm counter-UAS pipeline with an attack/fault-injection harness and measured, seed-averaged metrics."
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.23", "scipy>=1.9"]
+
+[project.scripts]
+cuas-lab = "cuas_lab.run:main"
+cuas-lab-serve = "cuas_lab.serve:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
